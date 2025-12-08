@@ -1,5 +1,5 @@
-if(document.readystate=='loading'){
-	document.addEventListener('DOMcontentLoaded',ready)
+if(document.readyState=='loading'){
+	document.addEventListener('DOMContentLoaded',ready)
 }else{
 	ready()
 }

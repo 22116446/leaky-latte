@@ -105,4 +105,74 @@ function updatecarttotal(){
 	total=Math.round(total*100)/100
 	document.getElementsByClassName('cart-total-price')[0].innerText='₺'+total
 }
+//database order saving part
+document.addEventListener('DOMContentLoaded', function () {
+    const orderButton = document.querySelector('.btn-order');
+    if (!orderButton) return;
+
+    orderButton.addEventListener('click', async function () {
+        const cartContainer = document.querySelector('.cart-items');
+        if (!cartContainer) {
+            alert('Cart not found.');
+            return;
+        }
+
+        const cartRows = cartContainer.getElementsByClassName('cart-row');
+        const items = [];
+        let total = 0;
+
+        for (let i = 0; i < cartRows.length; i++) {
+            const row = cartRows[i];
+
+            const titleEl = row.querySelector('.cart-item-title');
+            const priceEl = row.querySelector('.cart-price');
+            const qtyEl   = row.querySelector('.cart-quantity-input');
+
+            if (!titleEl || !priceEl || !qtyEl) continue;
+
+            const name = titleEl.innerText.trim();
+            const price = parseFloat(priceEl.innerText.replace(/[₺$]/g, ''));
+            const quantity = parseInt(qtyEl.value || '1', 10);
+
+            items.push({ name, price, quantity });
+            total += price * quantity;
+        }
+
+        if (items.length === 0) {
+            alert('Your cart is empty.');
+            return;
+        }
+
+        // Simple customer details for now
+        const customerName  = prompt('Enter your name (optional):')  || '';
+        const customerEmail = prompt('Enter your email (optional):') || '';
+
+        try {
+            const res = await fetch('save_order.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customerName,
+                    customerEmail,
+                    items,
+                    total: Math.round(total * 100) / 100
+                })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                alert('Order placed! Your order ID is ' + data.orderId);
+                // Optional: clear the cart UI after successful order
+                // document.querySelector('.cart-items').innerHTML = '';
+                // document.querySelector('.cart-total-price').innerText = '₺0';
+            } else {
+                alert('Could not place order. Please try again.');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Network error, please try again.');
+        }
+    });
+});
 

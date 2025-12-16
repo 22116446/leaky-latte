@@ -1,4 +1,5 @@
 <?php
+require __DIR__ . '/db.php';
 require 'db.php';
 require 'auth.php';
 
@@ -11,16 +12,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($usernameOrEmail === '' || $password === '') {
         $error = 'Please enter username/email and password.';
     } else {
-        $stmt = $conn->prepare("
-            SELECT id, username, email, password_hash, role
-            FROM users
-            WHERE username = ? OR email = ?
-            LIMIT 1
-        ");
-        $stmt->bind_param("ss", $usernameOrEmail, $usernameOrEmail);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $user   = $result->fetch_assoc();
+        $stmt = $conn->prepare(
+            "SELECT id, username, email, password_hash, role
+             FROM public.users
+             WHERE username = :u OR email = :u
+             LIMIT 1"
+        );
+        $stmt->execute([':u' => $usernameOrEmail]);
+        $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
             $_SESSION['user'] = [
@@ -29,7 +28,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'email'    => $user['email'],
                 'role'     => $user['role'],
             ];
-            header('Location: products.html'); // or orders.php for admin/staff
+
+            // Redirect by role
+            if (in_array($user['role'], ['admin', 'staff'], true)) {
+                header('Location: orders.php');
+            } else {
+                header('Location: products.html');
+            }
             exit;
         } else {
             $error = 'Invalid credentials.';

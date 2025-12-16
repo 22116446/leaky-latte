@@ -7,28 +7,28 @@ $user = current_user();
 
 // Basic stats
 // Total orders
-$resTotal = $conn->query("SELECT COUNT(*) AS c FROM orders");
-$totalOrders = $resTotal->fetch_assoc()['c'] ?? 0;
+$resTotal = $conn->query("SELECT COUNT(*) AS c FROM public.orders");
+$totalOrders = ($resTotal->fetch()['c'] ?? 0);
 
 // Pending
-$resPending = $conn->query("SELECT COUNT(*) AS c FROM orders WHERE status = 'Pending'");
-$pendingOrders = $resPending->fetch_assoc()['c'] ?? 0;
+$resPending = $conn->query("SELECT COUNT(*) AS c FROM public.orders WHERE status = 'Pending'");
+$pendingOrders = ($resPending->fetch()['c'] ?? 0);
 
 // Completed
-$resCompleted = $conn->query("SELECT COUNT(*) AS c FROM orders WHERE status = 'Completed'");
-$completedOrders = $resCompleted->fetch_assoc()['c'] ?? 0;
+$resCompleted = $conn->query("SELECT COUNT(*) AS c FROM public.orders WHERE status = 'Completed'");
+$completedOrders = ($resCompleted->fetch()['c'] ?? 0);
 
 // Total revenue
-$resRevenue = $conn->query("SELECT COALESCE(SUM(total_price),0) AS s FROM orders");
-$totalRevenue = $resRevenue->fetch_assoc()['s'] ?? 0;
+$resRevenue = $conn->query("SELECT COALESCE(SUM(total_price),0) AS s FROM public.orders");
+$totalRevenue = ($resRevenue->fetch()['s'] ?? 0);
 
 // Today's orders
 $resToday = $conn->query("
     SELECT COUNT(*) AS c, COALESCE(SUM(total_price),0) AS s
-    FROM orders
-    WHERE DATE(created_at) = CURDATE()
+    FROM public.orders
+    WHERE created_at::date = CURRENT_DATE
 ");
-$todayRow      = $resToday->fetch_assoc();
+$todayRow      = $resToday->fetch();
 $todayOrders   = $todayRow['c'] ?? 0;
 $todayRevenue  = $todayRow['s'] ?? 0;
 ?>
@@ -168,5 +168,5 @@ $todayRevenue  = $todayRow['s'] ?? 0;
 </body>
 </html>
 <?php
-$conn->close();
+// PDO auto-closes at end of request
 ?>

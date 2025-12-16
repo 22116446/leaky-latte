@@ -1,4 +1,5 @@
 <?php
+require __DIR__ . '/db.php';
 require 'db.php';
 require 'auth.php';
 
@@ -12,10 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         $status  = $_POST['status'] ?? 'Pending';
 
         if ($orderId > 0 && in_array($status, ['Pending', 'Completed'], true)) {
-            $stmt = $conn->prepare("UPDATE orders SET status = ? WHERE id = ?");
-            $stmt->bind_param("si", $status, $orderId);
-            $stmt->execute();
-            $stmt->close();
+            $stmt = $conn->prepare("UPDATE public.orders SET status = :status WHERE id = :id");
+            $stmt->execute([':status' => $status, ':id' => $orderId]);
         }
     }
     // Redirect to avoid resubmission on refresh
@@ -27,35 +26,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 
 $where  = [];
 $params = [];
-$types  = '';
 
 // ADMIN: optional filters on date + status
 if ($user['role'] === 'admin') {
     if (!empty($_GET['date'])) {
-        $where[]  = "DATE(created_at) = ?";
-        $params[] = $_GET['date'];
-        $types   .= 's';
+        $where[]  = "created_at::date = :date";
+        $params[':date'] = $_GET['date'];
     }
 
     if (!empty($_GET['status']) && in_array($_GET['status'], ['Pending','Completed'], true)) {
-        $where[]  = "status = ?";
-        $params[] = $_GET['status'];
-        $types   .= 's';
+        $where[] = "status = :status";
+        $params[':status'] = $_GET['status'];
     }
 }
 
 // CLIENT: see only their own orders (by email)
 if ($user['role'] === 'client') {
-    $where[]  = "customer_email = ?";
-    $params[] = $user['email'];              // email from session (login)
-    $types   .= 's';
+    $where[] = "customer_email = :email";
+    $params[':email'] = $user['email'];
 }
 
 // STAFF: see all orders, no extra filters (for now)
 
 $sql = "
     SELECT id, customer_name, customer_email, total_price, created_at, status
-    FROM orders
+    FROM public.orders
 ";
 
 if ($where) {
@@ -65,20 +60,15 @@ if ($where) {
 $sql .= " ORDER BY created_at DESC";
 
 $stmtOrders = $conn->prepare($sql);
-
-if ($where) {
-    $stmtOrders->bind_param($types, ...$params);
-}
-
-$stmtOrders->execute();
-$ordersResult = $stmtOrders->get_result();
+$stmtOrders->execute($params);
+$ordersResult = $stmtOrders->fetchAll();
 
 // Prepare statement for items
-$itemsStmt = $conn->prepare("
-    SELECT product_name, unit_price, quantity
-    FROM order_items
-    WHERE order_id = ?
-");
+$itemsStmt = $conn->prepare(
+    "SELECT product_name, unit_price, quantity
+     FROM public.order_items
+     WHERE order_id = :order_id"
+);
 ?>
 <!doctype html>
 <html lang="en">
@@ -250,9 +240,9 @@ $itemsStmt = $conn->prepare("
         <?php endif; ?>
     </div>
 
-    <?php if ($ordersResult && $ordersResult->num_rows > 0): ?>
+    <?php if (!empty($ordersResult)): ?>
 
-        <?php while ($order = $ordersResult->fetch_assoc()): ?>
+        <?php foreach ($ordersResult as $order): ?>
             <div class="order-card">
                 <div class="order-header">
                     <div>
@@ -273,12 +263,11 @@ $itemsStmt = $conn->prepare("
 
                 <?php
                 // Fetch items for this order
-                $itemsStmt->bind_param("i", $order['id']);
-                $itemsStmt->execute();
-                $itemsResult = $itemsStmt->get_result();
+                $itemsStmt->execute([':order_id' => $order['id']]);
+                $itemsResult = $itemsStmt->fetchAll();
                 ?>
 
-                <?php if ($itemsResult && $itemsResult->num_rows > 0): ?>
+                <?php if (!empty($itemsResult)): ?>
                     <table>
                         <thead>
                         <tr>
@@ -289,7 +278,7 @@ $itemsStmt = $conn->prepare("
                         </tr>
                         </thead>
                         <tbody>
-                        <?php while ($item = $itemsResult->fetch_assoc()): ?>
+                        <?php foreach ($itemsResult as $item): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($item['product_name']); ?></td>
                                 <td>₺<?php echo htmlspecialchars(number_format($item['unit_price'], 2)); ?></td>
@@ -301,7 +290,7 @@ $itemsStmt = $conn->prepare("
                                     ?>
                                 </td>
                             </tr>
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                         </tbody>
                     </table>
                 <?php else: ?>
@@ -322,7 +311,7 @@ $itemsStmt = $conn->prepare("
                     </form>
                 <?php endif; ?>
             </div>
-        <?php endwhile; ?>
+        <?php endforeach; ?>
 
     <?php else: ?>
         <p class="no-orders">No orders found.</p>
@@ -332,7 +321,5 @@ $itemsStmt = $conn->prepare("
 </body>
 </html>
 <?php
-$itemsStmt->close();
-$stmtOrders->close();
-$conn->close();
+// PDO auto-closes at end of request
 ?>

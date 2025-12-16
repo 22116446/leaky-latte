@@ -1,4 +1,5 @@
 <?php
+require __DIR__ . '/db.php';
 header('Content-Type: application/json');
 require 'db.php';
 
@@ -12,16 +13,12 @@ if ($fullName === '' || $email === '' || $message === '') {
     exit;
 }
 
-$stmt = $conn->prepare("INSERT INTO contacts (full_name, email, message) VALUES (?, ?, ?)");
-$stmt->bind_param("sss", $fullName, $email, $message);
-
-if ($stmt->execute()) {
+try {
+    $stmt = $conn->prepare("INSERT INTO public.contacts (full_name, email, message) VALUES (:n, :e, :m)");
+    $stmt->execute([':n' => $fullName, ':e' => $email, ':m' => $message]);
     echo json_encode(['success' => true]);
-} else {
+} catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'DB error']);
 }
-
-$stmt->close();
-$conn->close();
 ?>
